@@ -62,16 +62,20 @@ int main(int argc, char* argv[]) {
 			minQuality = atoi(argv[argi]);
 			++argi;
 		}
-		if (strcmp(argv[argi], "-b") == 0) {
+		else if (strcmp(argv[argi], "-b") == 0) {
 			++argi;
 			bin = atoi(argv[argi]);
 			++argi;
 		}
-		if (strcmp(argv[argi], "-in") == 0) {
+		else if (strcmp(argv[argi], "-in") == 0) {
 			++argi;
 			bamFileNames.push_back(argv[argi]);
 			++argi;
 		}
+        else {
+           cout << " unrecognized argument: " << argv[argi] << endl;
+           exit( 1 );
+        }
 	}
 	ofstream outFile(outFileName.c_str());
 	int i;
