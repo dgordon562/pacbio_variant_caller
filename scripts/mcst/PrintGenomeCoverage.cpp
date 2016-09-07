@@ -11,6 +11,9 @@
 #include <numeric>
 #include <iomanip>
 
+
+
+
 using namespace std;
 typedef struct {
     int beg, end;
@@ -35,6 +38,8 @@ int GetTLen(const bam1_t *b) {
 }
 
 int main(int argc, char* argv[]) {
+
+    setlocale(LC_NUMERIC, "");
 
 
 	bam_index_t *idx;
@@ -77,7 +82,14 @@ int main(int argc, char* argv[]) {
            exit( 1 );
         }
 	}
-	ofstream outFile(outFileName.c_str());
+
+
+    FILE* outFile = fopen( outFileName.c_str(), "w" );
+    if ( !outFile ) {
+       cerr << "couldn't open " << outFileName << " for write" << endl;
+       exit( 1 );
+    }
+
 	int i;
 	int bamI = 0;
 	vector<vector<int> > coverage;
@@ -114,13 +126,16 @@ int main(int argc, char* argv[]) {
 			}
 			++readIndex;
 			totalNumBases += tEnd - tStart;
-			if (readIndex % 10000 == 0) {
-				cerr << "processed " << readIndex << " reads " << totalNumBases / 1000000000 << "Gb" << endl;
+			if (readIndex % 100000 == 0) {
+               fprintf( stderr, "processed %'d reads %.2f Gb\n", readIndex, totalNumBases / 1000000000.0 );
 			}
 
 			bam_destroy1(b);
 			b = bam_init1();
 		}
+
+        fprintf( stderr, "completed processing %'d reads %.2f Gb\n", readIndex, totalNumBases / 1000000000.0 );
+        
 
         // Destroy the header as long as this isn't the last BAM to be
         // processed. The header of the last BAM will be used to create the
@@ -133,19 +148,51 @@ int main(int argc, char* argv[]) {
 	}
 
 	for (i = 0; i < header->n_targets; i++) {
+
+       cerr << "printing " << header->target_name[i] << " (" << i << " where max is " <<  header->n_targets - 1 << ")" << endl;
 		int p;
 		int lastBinIndex = header->target_len[i] / bin + (header->target_len[i] / bin == 0? 0 : 1);
+
+        char szCoverage[10];
 		for (p = 0; p < lastBinIndex - 1; p++) {
-			outFile << header->target_name[i] << "\t" << p*bin << "\t" << (p+1)*bin << "\t" << std::setw(4) << float(coverage[i][p]) / bin << endl;
+
+           // reducing size of output file in case of integers
+           if ( coverage[i][p] % bin == 0 ) {
+              sprintf( szCoverage, "%d", coverage[i][p] / bin );
+           }
+           else {
+              sprintf( szCoverage, "%.2f", coverage[i][p] / (float) bin );
+           }
+
+           // c IO rather than c++ IO reduced total running time
+           // from 7:05 to 3:03 min:sec
+           
+           fprintf( outFile, "%s\t%d\t%d\t%s\n", 
+                    header->target_name[i],
+                    p*bin,
+                    (p+1)*bin,
+                    szCoverage );
 		}
 		int lastBinLength = header->target_len[i] - (lastBinIndex -1) * bin;
 		if (header->target_len[i] > 0 and lastBinLength > 0) {
-			outFile << header->target_name[i] << "\t" << p *bin << "\t" << header->target_len[i] << "\t" << float(coverage[i][p]) / lastBinLength << endl;
+           if ( coverage[i][p] % lastBinLength == 0 ) {
+              sprintf( szCoverage, "%d", coverage[i][p] / lastBinLength );
+           }
+           else {
+              sprintf( szCoverage, "%.2f", coverage[i][p] / (float) lastBinLength );
+           }
+
+           fprintf( outFile, "%s\t%d\t%d\t%s\n", 
+                    header->target_name[i],
+                    p*bin,
+                    header->target_len[i],
+                    szCoverage );
 
 		}
 	}
 
     bam_header_destroy(header);
-    outFile.close();
+
+    fclose( outFile );
 }
 
